@@ -51,6 +51,27 @@ If operating inside the source repository, `uv run python disk-cleanup-agent/scr
 3. If the scanner reports permission errors, mention them briefly. Do not retry with `sudo`.
 4. If a path looks important despite a low-risk classification, move it to review in your answer.
 
+## Interactive Updates
+
+Treat requests to update, refresh, revise, regenerate, or recalculate the report,
+recommendations, totals, candidate list, or summary table as requests for fresh
+disk data unless the context is very clearly only asking for a visual or wording
+change.
+
+In the general case, assume something may have changed on disk, such as the user
+deleting files after a previous recommendation. Rerun the scanner and generate a
+new report instead of reformatting or editing the previous report in place.
+Whole-volume scans can take a couple of minutes, but still run them so the skill
+and user are working from current disk state.
+
+After rerunning the scanner:
+
+1. Use the newly generated report path as the source of truth.
+2. Rebuild any user-facing summary table from the new report.
+3. Mention that the data was refreshed and include the new report path.
+4. Only reuse an older report when the user explicitly asks to reformat that
+   specific file or the request is unmistakably presentation-only.
+
 ## Classification Policy
 
 Low-risk means conservative disposable data only: old caches, logs, temp files, derived build outputs, dependency artifacts, Trash contents, and old installer/archive files in Downloads. The default age thresholds are 14 days for generated data, 30 days for installers/download archives, and 120 days for old projects.
