@@ -13,7 +13,9 @@ Never delete, move, archive, upload, empty Trash, run cleanup tools, or issue de
 
 ## Quick Start
 
-Run the bundled scanner from this skill directory or by absolute path:
+Run the bundled scanner from this skill directory or by absolute path. Prefer
+plain `python3` when using the installed skill because the scanner has no
+third-party runtime dependencies and may be copied outside the source repo:
 
 ```bash
 python3 scripts/scan_disk_cleanup.py
@@ -28,6 +30,8 @@ python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/p
 ```
 
 By default, the scanner runs a whole-volume scan and writes Markdown to `reports/disk-cleanup-YYYYMMDD-HHMM.md` in the current working directory.
+
+If operating inside the source repository, `uv run python disk-cleanup-agent/scripts/scan_disk_cleanup.py` is also valid. Reserve UV for repository development, checks, and cases where the project-managed interpreter matters.
 
 ## Workflow
 

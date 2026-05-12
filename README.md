@@ -25,6 +25,10 @@ After that, ask Codex to use `$disk-cleanup-agent` for disk cleanup reports.
 
 ## Manual Usage
 
+For cleanup reports, the scanner is intentionally runnable with plain Python. It
+uses only the Python standard library, so an installed or copied Codex skill does
+not need this repo's UV environment.
+
 From the skill folder:
 
 ```bash
@@ -45,6 +49,17 @@ python3 scripts/scan_disk_cleanup.py --root ~/Downloads --min-size-mb 25
 python3 scripts/scan_disk_cleanup.py --json
 python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/projects.md
 ```
+
+If you are working from this repository checkout and prefer the project-managed
+interpreter, use UV explicitly:
+
+```bash
+uv run python disk-cleanup-agent/scripts/scan_disk_cleanup.py
+```
+
+Use `uv run` for development commands and checks. Use `python3` for portable
+manual scanner runs, especially from a copied or symlinked skill folder outside
+the repository.
 
 ## Development
 
