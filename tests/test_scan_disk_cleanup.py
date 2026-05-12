@@ -5,9 +5,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
-
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNER_PATH = REPO_ROOT / "disk-cleanup-agent" / "scripts" / "scan_disk_cleanup.py"
@@ -59,7 +58,11 @@ class DiskCleanupScannerTests(unittest.TestCase):
             git_config = root / "PycharmProjects" / "old-project" / ".git" / "config"
             git_config.parent.mkdir(parents=True, exist_ok=True)
             git_config.write_text('[remote "origin"]\n\turl = git@example.com:repo/project.git\n')
-            write_blob(root / "Library" / "Application Support" / "BigApp" / "state.db", 2 * scanner.MB, 150)
+            write_blob(
+                root / "Library" / "Application Support" / "BigApp" / "state.db",
+                2 * scanner.MB,
+                150,
+            )
             make_old_tree(root, 150)
             write_blob(root / "Downloads" / "RecentInstaller.pkg", 3 * scanner.MB, 2)
 

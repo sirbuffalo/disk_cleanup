@@ -10,6 +10,7 @@ dependencies = []
 dev = [
     "mypy>=1.18.2",
     "pyright>=1.1.405",
+    "ruff>=0.8.0",
 ]
 
 [tool.uv]
@@ -30,3 +31,12 @@ include = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py", "tests"]
 exclude = [".venv", ".mypy_cache", ".pytest_cache", "reports"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["disk-cleanup-agent/scripts", "tests"]
+exclude = ["reports"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

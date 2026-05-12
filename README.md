@@ -60,12 +60,34 @@ Run the tests:
 uv run python -m unittest tests/test_scan_disk_cleanup.py
 ```
 
+Run formatting and linting:
+
+```bash
+uv run ruff format .
+uv run ruff check .
+```
+
 Run type checks:
 
 ```bash
 uv run mypy
 uv run pyright
 ```
+
+Run the full local gate:
+
+```bash
+scripts/check.sh
+```
+
+Install the tracked commit hook in this checkout:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs `scripts/check.sh` before each commit, which verifies Ruff formatting,
+Ruff linting, unit tests, mypy, and pyright.
 
 Validate the Codex skill metadata with the skill-creator validator if available:
 

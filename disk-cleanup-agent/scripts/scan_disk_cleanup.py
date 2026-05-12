@@ -13,10 +13,9 @@ import datetime as dt
 import errno
 import json
 import os
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
-
 
 MB = 1024 * 1024
 LOW_RISK_AGE_DAYS = 14
@@ -298,9 +297,13 @@ def record_error(ctx: ScanContext, path: Path, exc: OSError) -> None:
     ctx.errors.append(f"{path_key(path)}: {label}: {exc}")
 
 
-def should_skip_dir(path: Path, root_dev: int, stat_result: os.stat_result, ctx: ScanContext) -> bool:
+def should_skip_dir(
+    path: Path, root_dev: int, stat_result: os.stat_result, ctx: ScanContext
+) -> bool:
     path_string = path_key(path)
-    if any(path_string == prefix or path_string.startswith(prefix + "/") for prefix in SKIP_PREFIXES):
+    if any(
+        path_string == prefix or path_string.startswith(prefix + "/") for prefix in SKIP_PREFIXES
+    ):
         ctx.skipped.append(f"{path_string}: skipped system/runtime mount")
         return True
     if path.name in SKIP_NAMES:
@@ -398,7 +401,12 @@ def classify_file(path: Path, stat_result: os.stat_result, ctx: ScanContext) -> 
     mtime = stat_result.st_mtime
     if not large_enough(ctx, size_bytes):
         return
-    if is_download_file(path) and is_installer_or_archive(path) and old_enough(ctx, mtime, DOWNLOAD_AGE_DAYS):
+    if (
+        is_download_file(path)
+        and is_installer_or_archive(path)
+        and old_enough(ctx, mtime, DOWNLOAD_AGE_DAYS)
+    ):
+        archive_suffix = path.suffix or "compound suffix"
         ctx.candidates.append(
             make_candidate(
                 ctx=ctx,
@@ -411,14 +419,16 @@ def classify_file(path: Path, stat_result: os.stat_result, ctx: ScanContext) -> 
                 mtime=mtime,
                 reason="Old installer or archive file in Downloads.",
                 evidence=[
-                    f"Downloads file with installer/archive suffix: {path.suffix or 'compound suffix'}",
+                    f"Downloads file with installer/archive suffix: {archive_suffix}",
                     f"modified at least {DOWNLOAD_AGE_DAYS} days ago",
                 ],
             )
         )
 
 
-def classify_directory(path: Path, summary: DirSummary, entry_names: set[str], ctx: ScanContext) -> None:
+def classify_directory(
+    path: Path, summary: DirSummary, entry_names: set[str], ctx: ScanContext
+) -> None:
     if not large_enough(ctx, summary.size_bytes):
         return
 
@@ -484,8 +494,7 @@ def classify_directory(path: Path, summary: DirSummary, entry_names: set[str], c
         review_reason = (
             "old project",
             "Project-like directory is old enough to review for deletion or online archival.",
-            git_remote_evidence(path)
-            + [f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
+            git_remote_evidence(path) + [f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
         )
     elif (
         is_direct_child_of_sequence(path, ("Library", "Application Support"))
@@ -513,8 +522,12 @@ def classify_directory(path: Path, summary: DirSummary, entry_names: set[str], c
             if has_suffix(path, review_suffix) and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS):
                 review_reason = (
                     "developer/app state",
-                    "Large old developer or app state may be cleanable but can contain useful data.",
-                    ["/".join(review_suffix), f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
+                    "Large old developer or app state may be cleanable but can contain "
+                    "useful data.",
+                    [
+                        "/".join(review_suffix),
+                        f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago",
+                    ],
                 )
                 break
 
@@ -564,7 +577,9 @@ def scan_dir(path: Path, root_dev: int, ctx: ScanContext) -> DirSummary:
                         summary.file_count += child.file_count
                         summary.dir_count += child.dir_count + 1
                         if child.newest_mtime is not None:
-                            summary.newest_mtime = max(summary.newest_mtime or 0, child.newest_mtime)
+                            summary.newest_mtime = max(
+                                summary.newest_mtime or 0, child.newest_mtime
+                            )
                     elif entry.is_file(follow_symlinks=False):
                         summary.size_bytes += entry_stat.st_size
                         summary.file_count += 1
@@ -622,7 +637,9 @@ def is_nested_under(path: str, ancestor: str) -> bool:
 
 def dedupe_candidates(candidates: list[Candidate]) -> list[Candidate]:
     selected: list[Candidate] = []
-    for candidate in sorted(candidates, key=lambda item: (item.bucket, item.category, item.path.count("/"))):
+    for candidate in sorted(
+        candidates, key=lambda item: (item.bucket, item.category, item.path.count("/"))
+    ):
         if any(
             candidate.bucket == existing.bucket
             and candidate.category == existing.category
@@ -631,7 +648,9 @@ def dedupe_candidates(candidates: list[Candidate]) -> list[Candidate]:
         ):
             continue
         selected.append(candidate)
-    return sorted(selected, key=lambda item: (item.bucket != LOW_RISK_BUCKET, -item.size_bytes, item.path))
+    return sorted(
+        selected, key=lambda item: (item.bucket != LOW_RISK_BUCKET, -item.size_bytes, item.path)
+    )
 
 
 def markdown_table(candidates: list[Candidate]) -> str:
@@ -645,9 +664,11 @@ def markdown_table(candidates: list[Candidate]) -> str:
         path = item.path.replace("|", "\\|")
         reason = item.reason.replace("|", "\\|")
         evidence = evidence.replace("|", "\\|")
-        lines.append(
-            f"| {item.size} | {age} | {item.category} | {item.confidence} | `{path}` | {reason} | {evidence} |"
+        row = (
+            f"| {item.size} | {age} | {item.category} | {item.confidence} | "
+            f"`{path}` | {reason} | {evidence} |"
         )
+        lines.append(row)
     return "\n".join(lines)
 
 
@@ -708,7 +729,9 @@ def render_markdown(ctx: ScanContext, started_at: dt.datetime, finished_at: dt.d
     return "\n".join(lines)
 
 
-def json_payload(ctx: ScanContext, started_at: dt.datetime, finished_at: dt.datetime) -> dict[str, object]:
+def json_payload(
+    ctx: ScanContext, started_at: dt.datetime, finished_at: dt.datetime
+) -> dict[str, object]:
     candidates = dedupe_candidates(ctx.candidates)
     return {
         "started": started_at.isoformat(timespec="seconds"),
@@ -748,12 +771,32 @@ def parse_args() -> argparse.Namespace:
         default="whole-volume",
         help="Default scan scope when --root is not provided.",
     )
-    parser.add_argument("--root", action="append", help="Scan this root instead of the default scope. May be repeated.")
-    parser.add_argument("--output", help="Output file or directory. Defaults to reports/disk-cleanup-YYYYMMDD-HHMM.md.")
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown", help="Primary report format.")
-    parser.add_argument("--json", action="store_true", help="Also write a JSON sidecar when using Markdown output.")
-    parser.add_argument("--min-size-mb", type=float, default=DEFAULT_MIN_SIZE_MB, help="Minimum candidate size in MB.")
-    parser.add_argument("--include-small", action="store_true", help="Include candidates below the default size threshold.")
+    parser.add_argument(
+        "--root",
+        action="append",
+        help="Scan this root instead of the default scope. May be repeated.",
+    )
+    parser.add_argument(
+        "--output",
+        help="Output file or directory. Defaults to reports/disk-cleanup-YYYYMMDD-HHMM.md.",
+    )
+    parser.add_argument(
+        "--format", choices=("markdown", "json"), default="markdown", help="Primary report format."
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Also write a JSON sidecar when using Markdown output."
+    )
+    parser.add_argument(
+        "--min-size-mb",
+        type=float,
+        default=DEFAULT_MIN_SIZE_MB,
+        help="Minimum candidate size in MB.",
+    )
+    parser.add_argument(
+        "--include-small",
+        action="store_true",
+        help="Include candidates below the default size threshold.",
+    )
     return parser.parse_args()
 
 
@@ -763,7 +806,9 @@ def main() -> int:
         raise SystemExit("Refusing to run as root. Run as the local user without sudo.")
 
     min_size_mb = 0 if args.include_small else max(0, args.min_size_mb)
-    roots = [Path(root).expanduser() for root in args.root] if args.root else default_roots(args.scope)
+    roots = (
+        [Path(root).expanduser() for root in args.root] if args.root else default_roots(args.scope)
+    )
     started_at = dt.datetime.now()
     ctx = ScanContext(
         now=started_at.timestamp(),
@@ -779,7 +824,9 @@ def main() -> int:
 
     primary_path = output_path(args.output, args.format, started_at)
     if args.format == "json":
-        write_text(primary_path, json.dumps(json_payload(ctx, started_at, finished_at), indent=2) + "\n")
+        write_text(
+            primary_path, json.dumps(json_payload(ctx, started_at, finished_at), indent=2) + "\n"
+        )
     else:
         write_text(primary_path, render_markdown(ctx, started_at, finished_at))
         if args.json:
