@@ -1,0 +1,4 @@
+interface:
+  display_name: "Disk Cleanup Agent"
+  short_description: "Find low-risk macOS cleanup candidates"
+  default_prompt: "Use $disk-cleanup-agent to scan my Mac and prepare a conservative cleanup report."
