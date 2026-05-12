@@ -41,14 +41,28 @@ Defaults:
 - Format: Markdown
 - Output: `reports/disk-cleanup-YYYYMMDD-HHMM.md`
 - Minimum candidate size: 100 MB
+- Markdown scan notes: grouped summaries by default; use `--verbose-notes`
+  for full skipped/error lists
 
 Useful examples:
 
 ```bash
 python3 scripts/scan_disk_cleanup.py --root ~/Downloads --min-size-mb 25
 python3 scripts/scan_disk_cleanup.py --json
+python3 scripts/scan_disk_cleanup.py --verbose-notes
 python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/projects.md
 ```
+
+The default whole-volume scan prioritizes user-relevant locations instead of
+exhaustive filesystem coverage. It scans the current user's home folder,
+common shared application/developer locations, `/tmp`-style roots, and the
+current user's Darwin temp/cache folders derived from `TMPDIR`.
+
+Granting Full Disk Access to Terminal can reduce macOS privacy prompts and
+TCC-related denials for user data, but it does not make the scanner root and
+does not bypass POSIX permissions, SIP, Data Vault protections, or root-owned
+service directories. Some `EACCES` or `EPERM` results are normal on modern
+macOS and are summarized in Markdown while remaining fully available in JSON.
 
 If you are working from this repository checkout and prefer the project-managed
 interpreter, use UV explicitly:

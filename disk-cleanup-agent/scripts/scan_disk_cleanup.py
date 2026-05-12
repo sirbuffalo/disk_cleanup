@@ -13,7 +13,8 @@ import datetime as dt
 import errno
 import json
 import os
-from collections.abc import Iterable
+from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -139,11 +140,9 @@ SKIP_NAMES: set[str] = {
     ".Spotlight-V100",
     ".TemporaryItems",
     ".vol",
-    "Network",
-    "dev",
-    "net",
-    "home",
 }
+
+EXACT_SKIP_PATHS: tuple[str, ...] = ("/dev", "/net", "/home", "/Network")
 
 SKIP_PREFIXES: tuple[str, ...] = (
     "/System/Volumes/Preboot",
@@ -156,15 +155,14 @@ SKIP_PREFIXES: tuple[str, ...] = (
     "/Library/Developer/CoreSimulator/Cryptex/Images",
 )
 
-WHOLE_VOLUME_ROOTS: tuple[str, ...] = (
-    "/Users",
+WHOLE_VOLUME_USER_ROOTS: tuple[str, ...] = (
+    "~",
     "/Applications",
     "/Library",
     "/opt",
     "/usr/local",
     "/private/tmp",
     "/var/tmp",
-    "/private/var/folders",
 )
 
 
@@ -263,6 +261,22 @@ def large_enough(ctx: ScanContext, size_bytes: int) -> bool:
     return size_bytes >= ctx.min_size_bytes
 
 
+def first_app_bundle(path: Path) -> Path | None:
+    current = Path("/")
+    for part in parts(path):
+        if part == "/":
+            continue
+        current /= part
+        if part.endswith(".app"):
+            return current
+    return None
+
+
+def inside_app_bundle(path: Path) -> bool:
+    app_bundle = first_app_bundle(path)
+    return app_bundle is not None and path_key(path) != path_key(app_bundle)
+
+
 def make_candidate(
     *,
     ctx: ScanContext,
@@ -301,6 +315,9 @@ def should_skip_dir(
     path: Path, root_dev: int, stat_result: os.stat_result, ctx: ScanContext
 ) -> bool:
     path_string = path_key(path)
+    if path_string in EXACT_SKIP_PATHS:
+        ctx.skipped.append(f"{path_string}: skipped system root")
+        return True
     if any(
         path_string == prefix or path_string.startswith(prefix + "/") for prefix in SKIP_PREFIXES
     ):
@@ -434,9 +451,12 @@ def classify_directory(
 
     mtime = summary.newest_mtime
     name = path.name
+    is_app_internal = inside_app_bundle(path)
 
     low_risk_reason: tuple[str, str, list[str]] | None = None
-    if is_trash_path(path):
+    if is_app_internal:
+        low_risk_reason = None
+    elif is_trash_path(path):
         low_risk_reason = (
             "Trash contents",
             "Path is already in Trash.",
@@ -490,7 +510,18 @@ def classify_directory(
         return
 
     review_reason: tuple[str, str, list[str]] | None = None
-    if has_project_marker(entry_names) and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS):
+    if path.name.endswith(".app") and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS):
+        review_reason = (
+            "application bundle",
+            "Large old app bundle can be reviewed for uninstalling through normal "
+            "macOS app management.",
+            ["app bundle", f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
+        )
+    elif (
+        not is_app_internal
+        and has_project_marker(entry_names)
+        and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS)
+    ):
         review_reason = (
             "old project",
             "Project-like directory is old enough to review for deletion or online archival.",
@@ -531,7 +562,7 @@ def classify_directory(
                 )
                 break
 
-    if review_reason:
+    if review_reason and (not is_app_internal or path.name.endswith(".app")):
         category, reason, evidence = review_reason
         ctx.candidates.append(
             make_candidate(
@@ -601,7 +632,7 @@ def default_roots(scope: str) -> list[Path]:
         return [Path.home()]
     roots: list[Path] = []
     seen: set[tuple[int, int]] = set()
-    for raw_root in WHOLE_VOLUME_ROOTS:
+    for raw_root in whole_volume_roots():
         root = Path(raw_root).expanduser()
         try:
             stat_result = root.stat()
@@ -613,6 +644,22 @@ def default_roots(scope: str) -> list[Path]:
         seen.add(key)
         roots.append(root)
     return roots
+
+
+def darwin_user_temp_roots() -> list[Path]:
+    tmpdir = os.environ.get("TMPDIR")
+    if not tmpdir:
+        return []
+
+    temp_root = Path(tmpdir).expanduser()
+    roots = [temp_root]
+    if temp_root.name in {"T", "C"}:
+        roots.append(temp_root.parent / "C")
+    return roots
+
+
+def whole_volume_roots() -> list[Path]:
+    return [Path(root) for root in WHOLE_VOLUME_USER_ROOTS] + darwin_user_temp_roots()
 
 
 def scan_roots(roots: list[Path], ctx: ScanContext) -> None:
@@ -672,7 +719,75 @@ def markdown_table(candidates: list[Candidate]) -> str:
     return "\n".join(lines)
 
 
-def render_markdown(ctx: ScanContext, started_at: dt.datetime, finished_at: dt.datetime) -> str:
+def note_reason(note: str) -> str:
+    _, separator, reason = note.rpartition(": ")
+    return reason if separator else note
+
+
+def error_code(note: str) -> str:
+    _, separator, detail = note.partition(": ")
+    if not separator:
+        return "ERROR"
+    code, code_separator, _ = detail.partition(": ")
+    return code if code_separator else "ERROR"
+
+
+def render_note_summary(title: str, notes: Sequence[str], *, group_errors: bool) -> list[str]:
+    if not notes:
+        return [f"No {title.lower()} recorded."]
+
+    lines = [f"{title}: {len(notes)} total"]
+    key_fn = error_code if group_errors else note_reason
+    examples_by_key: dict[str, str] = {}
+    counts = Counter(key_fn(note) for note in notes)
+    for note in notes:
+        key = key_fn(note)
+        example = note.partition(": ")[0] if group_errors else note.rpartition(": ")[0]
+        examples_by_key.setdefault(key, example or note)
+    for key, count in counts.most_common():
+        lines.append(f"- {key}: {count} paths, for example `{examples_by_key[key]}`")
+    return lines
+
+
+def render_note_details(title: str, notes: Sequence[str]) -> list[str]:
+    if not notes:
+        return [f"No {title.lower()} recorded."]
+
+    lines = [f"{title}:"]
+    for item in notes[:100]:
+        lines.append(f"- `{item}`")
+    if len(notes) > 100:
+        lines.append(f"- ... {len(notes) - 100} more")
+    return lines
+
+
+def render_scan_notes(ctx: ScanContext, *, verbose_notes: bool) -> list[str]:
+    if verbose_notes:
+        lines = render_note_details("Skipped paths", ctx.skipped)
+        lines.append("")
+        lines.extend(render_note_details("Permission or read errors", ctx.errors))
+        return lines
+
+    lines = render_note_summary("Skipped paths", ctx.skipped, group_errors=False)
+    lines.append("")
+    lines.extend(render_note_summary("Permission or read errors", ctx.errors, group_errors=True))
+    if ctx.skipped or ctx.errors:
+        lines.extend(
+            [
+                "",
+                "Full details are available in JSON output or with `--verbose-notes`.",
+            ]
+        )
+    return lines
+
+
+def render_markdown(
+    ctx: ScanContext,
+    started_at: dt.datetime,
+    finished_at: dt.datetime,
+    *,
+    verbose_notes: bool = False,
+) -> str:
     candidates = dedupe_candidates(ctx.candidates)
     low_risk = [item for item in candidates if item.bucket == LOW_RISK_BUCKET]
     review = [item for item in candidates if item.bucket == REVIEW_BUCKET]
@@ -706,25 +821,7 @@ def render_markdown(ctx: ScanContext, started_at: dt.datetime, finished_at: dt.d
         lines.append("No review candidates met the filters.")
 
     lines.extend(["", "## Scan Notes", ""])
-    if ctx.skipped:
-        lines.append("Skipped paths:")
-        for item in ctx.skipped[:100]:
-            lines.append(f"- `{item}`")
-        if len(ctx.skipped) > 100:
-            lines.append(f"- ... {len(ctx.skipped) - 100} more skipped paths")
-    else:
-        lines.append("No skipped paths recorded.")
-
-    lines.append("")
-    if ctx.errors:
-        lines.append("Permission or read errors:")
-        for item in ctx.errors[:100]:
-            lines.append(f"- `{item}`")
-        if len(ctx.errors) > 100:
-            lines.append(f"- ... {len(ctx.errors) - 100} more errors")
-    else:
-        lines.append("No permission or read errors recorded.")
-
+    lines.extend(render_scan_notes(ctx, verbose_notes=verbose_notes))
     lines.append("")
     return "\n".join(lines)
 
@@ -787,6 +884,11 @@ def parse_args() -> argparse.Namespace:
         "--json", action="store_true", help="Also write a JSON sidecar when using Markdown output."
     )
     parser.add_argument(
+        "--verbose-notes",
+        action="store_true",
+        help="Show full skipped/error lists in Markdown instead of grouped note summaries.",
+    )
+    parser.add_argument(
         "--min-size-mb",
         type=float,
         default=DEFAULT_MIN_SIZE_MB,
@@ -828,7 +930,10 @@ def main() -> int:
             primary_path, json.dumps(json_payload(ctx, started_at, finished_at), indent=2) + "\n"
         )
     else:
-        write_text(primary_path, render_markdown(ctx, started_at, finished_at))
+        write_text(
+            primary_path,
+            render_markdown(ctx, started_at, finished_at, verbose_notes=args.verbose_notes),
+        )
         if args.json:
             write_text(
                 primary_path.with_suffix(".json"),

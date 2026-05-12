@@ -26,10 +26,13 @@ Useful options:
 ```bash
 python3 scripts/scan_disk_cleanup.py --root ~/Downloads --min-size-mb 25
 python3 scripts/scan_disk_cleanup.py --json
+python3 scripts/scan_disk_cleanup.py --verbose-notes
 python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/projects.md
 ```
 
 By default, the scanner runs a whole-volume scan and writes Markdown to `reports/disk-cleanup-YYYYMMDD-HHMM.md` in the current working directory.
+Markdown scan notes are summarized by default; use `--verbose-notes` only when
+the user needs the full skipped/error list in the Markdown report.
 
 If operating inside the source repository, `uv run python disk-cleanup-agent/scripts/scan_disk_cleanup.py` is also valid. Reserve UV for repository development, checks, and cases where the project-managed interpreter matters.
 
@@ -46,7 +49,16 @@ Low-risk means conservative disposable data only: old caches, logs, temp files, 
 
 Review-only means large or old data that might be worth deleting or archiving but can contain user data: projects, cloud-synced folders, Application Support data, Docker state, Xcode archives, simulator/device support data, and app containers.
 
-Whole-volume scans focus on writable or user-relevant locations such as `/Users`, `/Applications`, `/Library`, `/opt`, `/usr/local`, `/private/tmp`, and `/private/var/folders`. They skip sealed system roots, read-only mounts, virtual mounts, backup metadata, and OS-critical paths.
+Whole-volume scans focus on the current user's home folder plus shared
+application/developer locations such as `/Applications`, `/Library`, `/opt`,
+`/usr/local`, `/private/tmp`, `/var/tmp`, and the current user's Darwin
+temp/cache folders derived from `TMPDIR`. They skip sealed system roots,
+read-only mounts, virtual mounts, backup metadata, and OS-critical paths.
+
+Full Disk Access for Terminal can help with macOS privacy-protected user data,
+but it does not grant root privileges or bypass POSIX permissions, SIP, Data
+Vault protections, or root-owned service directories. Treat some `EACCES` or
+`EPERM` scan notes as normal on macOS.
 
 ## Report Expectations
 

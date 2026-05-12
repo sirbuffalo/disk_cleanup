@@ -49,6 +49,25 @@ class DiskCleanupScannerTests(unittest.TestCase):
             args = scanner.parse_args()
         self.assertEqual(args.scope, "whole-volume")
         self.assertEqual(args.format, "markdown")
+        self.assertFalse(args.verbose_notes)
+
+    def test_whole_volume_defaults_to_user_relevant_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir) / "Users" / "davis"
+            darwin_tmp = Path(temp_dir) / "var" / "folders" / "rt" / "session" / "T"
+            darwin_cache = darwin_tmp.parent / "C"
+            home.mkdir(parents=True)
+            darwin_tmp.mkdir(parents=True)
+            darwin_cache.mkdir(parents=True)
+
+            with mock.patch.dict(os.environ, {"HOME": str(home), "TMPDIR": str(darwin_tmp)}):
+                roots = {str(path) for path in scanner.default_roots("whole-volume")}
+
+            self.assertIn(str(home), roots)
+            self.assertIn(str(darwin_tmp), roots)
+            self.assertIn(str(darwin_cache), roots)
+            self.assertNotIn(str(home.parent), roots)
+            self.assertNotIn("/private/var/folders", roots)
 
     def test_fixture_classification_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -92,6 +111,54 @@ class DiskCleanupScannerTests(unittest.TestCase):
             self.assertNotIn("rm -", report)
             self.assertNotIn("sudo ", report)
 
+    def test_common_project_directory_names_are_not_globally_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "Users" / "davis"
+            for name in ("dev", "net", "home", "Network"):
+                write_blob(root / name / "node_modules" / "blob.bin", scanner.MB, 30)
+            make_old_tree(root, 30)
+
+            ctx = scanner.ScanContext(
+                now=dt.datetime.now().timestamp(),
+                min_size_bytes=scanner.MB,
+                candidates=[],
+                errors=[],
+                skipped=[],
+                roots=[],
+            )
+            scanner.scan_roots([root], ctx)
+            paths = {item.path for item in scanner.dedupe_candidates(ctx.candidates)}
+
+            for name in ("dev", "net", "home", "Network"):
+                self.assertTrue(
+                    any(f"/{name}/node_modules" in path for path in paths),
+                    f"expected candidate under {name}",
+                )
+            self.assertFalse(any("skipped system metadata" in item for item in ctx.skipped))
+
+    def test_exact_system_roots_are_still_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            normal_dev = root / "dev"
+            normal_dev.mkdir()
+            stat_result = root.stat()
+            ctx = scanner.ScanContext(
+                now=dt.datetime.now().timestamp(),
+                min_size_bytes=0,
+                candidates=[],
+                errors=[],
+                skipped=[],
+                roots=[],
+            )
+
+            self.assertTrue(
+                scanner.should_skip_dir(Path("/dev"), stat_result.st_dev, stat_result, ctx)
+            )
+            self.assertFalse(
+                scanner.should_skip_dir(normal_dev, stat_result.st_dev, normal_dev.stat(), ctx)
+            )
+            self.assertIn("/dev: skipped system root", ctx.skipped)
+
     def test_cli_writes_markdown_report_and_json_sidecar(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Users" / "davis"
@@ -120,6 +187,71 @@ class DiskCleanupScannerTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertTrue(output.with_suffix(".json").exists())
             self.assertIn("App", output.read_text())
+
+    def test_markdown_scan_notes_are_grouped_unless_verbose(self) -> None:
+        ctx = scanner.ScanContext(
+            now=dt.datetime.now().timestamp(),
+            min_size_bytes=0,
+            candidates=[],
+            errors=[
+                "/private/secret: EACCES: [Errno 13] Permission denied: '/private/secret'",
+                "/private/vault: EPERM: [Errno 1] Operation not permitted: '/private/vault'",
+            ],
+            skipped=[
+                "/dev: skipped system root",
+                "/net: skipped system root",
+                "/mnt: skipped different filesystem",
+            ],
+            roots=[],
+        )
+
+        default_report = scanner.render_markdown(ctx, dt.datetime.now(), dt.datetime.now())
+        verbose_report = scanner.render_markdown(
+            ctx, dt.datetime.now(), dt.datetime.now(), verbose_notes=True
+        )
+
+        self.assertIn("Skipped paths: 3 total", default_report)
+        self.assertIn("skipped system root: 2 paths", default_report)
+        self.assertIn("Permission or read errors: 2 total", default_report)
+        self.assertIn("Full details are available in JSON output", default_report)
+        self.assertNotIn("`/dev: skipped system root`", default_report)
+        self.assertIn("`/dev: skipped system root`", verbose_report)
+        self.assertIn("`/private/secret: EACCES:", verbose_report)
+
+    def test_app_bundle_internals_are_not_low_risk_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "Applications"
+            app = root / "Cursor.app"
+            write_blob(
+                app / "Contents" / "Resources" / "app" / "node_modules" / "blob.bin",
+                2 * scanner.MB,
+                180,
+            )
+            make_old_tree(root, 180)
+
+            ctx = scanner.ScanContext(
+                now=dt.datetime.now().timestamp(),
+                min_size_bytes=scanner.MB,
+                candidates=[],
+                errors=[],
+                skipped=[],
+                roots=[],
+            )
+            scanner.scan_roots([root], ctx)
+            candidates = scanner.dedupe_candidates(ctx.candidates)
+
+            self.assertFalse(
+                any(
+                    item.bucket == scanner.LOW_RISK_BUCKET and "Cursor.app/Contents" in item.path
+                    for item in candidates
+                )
+            )
+            self.assertTrue(
+                any(
+                    item.bucket == scanner.REVIEW_BUCKET and item.path.endswith("Cursor.app")
+                    for item in candidates
+                )
+            )
 
     def test_permission_errors_are_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
