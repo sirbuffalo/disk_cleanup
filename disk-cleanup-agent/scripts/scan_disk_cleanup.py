@@ -27,7 +27,7 @@ DEFAULT_MIN_SIZE_MB = 100
 LOW_RISK_BUCKET = "extremely low risk"
 REVIEW_BUCKET = "review"
 
-INSTALLER_ARCHIVE_SUFFIXES = (
+INSTALLER_ARCHIVE_SUFFIXES: tuple[str, ...] = (
     ".dmg",
     ".pkg",
     ".mpkg",
@@ -45,7 +45,7 @@ INSTALLER_ARCHIVE_SUFFIXES = (
     ".gz",
 )
 
-PROJECT_MARKERS = {
+PROJECT_MARKERS: set[str] = {
     ".git",
     ".hg",
     ".svn",
@@ -71,7 +71,7 @@ PROJECT_MARKERS = {
     "Makefile",
 }
 
-PROJECT_SUFFIXES = (
+PROJECT_SUFFIXES: tuple[str, ...] = (
     ".xcodeproj",
     ".xcworkspace",
     ".sln",
@@ -80,7 +80,7 @@ PROJECT_SUFFIXES = (
     ".vcxproj",
 )
 
-DEPENDENCY_ARTIFACT_NAMES = {
+DEPENDENCY_ARTIFACT_NAMES: set[str] = {
     "node_modules",
     ".venv",
     "venv",
@@ -100,7 +100,7 @@ DEPENDENCY_ARTIFACT_NAMES = {
     "ModuleCache.noindex",
 }
 
-BUILD_OUTPUT_NAMES = {
+BUILD_OUTPUT_NAMES: set[str] = {
     "build",
     "target",
     "cmake-build-debug",
@@ -109,7 +109,7 @@ BUILD_OUTPUT_NAMES = {
     "cmake-build-minsizerel",
 }
 
-LOW_RISK_PATH_SUFFIXES = (
+LOW_RISK_PATH_SUFFIXES: tuple[tuple[str, ...], ...] = (
     (".gradle", "caches"),
     (".gradle", "wrapper", "dists"),
     (".npm", "_cacache"),
@@ -125,7 +125,7 @@ LOW_RISK_PATH_SUFFIXES = (
     ("Library", "Caches", "pip"),
 )
 
-REVIEW_PATH_SUFFIXES = (
+REVIEW_PATH_SUFFIXES: tuple[tuple[str, ...], ...] = (
     ("Library", "Developer", "Xcode", "Archives"),
     ("Library", "Developer", "Xcode", "iOS DeviceSupport"),
     ("Library", "Developer", "CoreSimulator", "Devices"),
@@ -134,7 +134,7 @@ REVIEW_PATH_SUFFIXES = (
     ("Library", "Group Containers", "group.com.docker"),
 )
 
-SKIP_NAMES = {
+SKIP_NAMES: set[str] = {
     ".DocumentRevisions-V100",
     ".fseventsd",
     ".Spotlight-V100",
@@ -146,7 +146,7 @@ SKIP_NAMES = {
     "home",
 }
 
-SKIP_PREFIXES = (
+SKIP_PREFIXES: tuple[str, ...] = (
     "/System/Volumes/Preboot",
     "/System/Volumes/Update",
     "/System/Volumes/VM",
@@ -157,7 +157,7 @@ SKIP_PREFIXES = (
     "/Library/Developer/CoreSimulator/Cryptex/Images",
 )
 
-WHOLE_VOLUME_ROOTS = (
+WHOLE_VOLUME_ROOTS: tuple[str, ...] = (
     "/Users",
     "/Applications",
     "/Library",
@@ -226,19 +226,9 @@ def parts(path: Path) -> tuple[str, ...]:
     return tuple(path.parts)
 
 
-def lower_parts(path: Path) -> tuple[str, ...]:
-    return tuple(part.lower() for part in path.parts)
-
-
 def has_suffix(path: Path, suffix: Iterable[str]) -> bool:
     path_parts = parts(path)
     suffix_parts = tuple(suffix)
-    return len(path_parts) >= len(suffix_parts) and path_parts[-len(suffix_parts) :] == suffix_parts
-
-
-def has_lower_suffix(path: Path, suffix: Iterable[str]) -> bool:
-    path_parts = lower_parts(path)
-    suffix_parts = tuple(part.lower() for part in suffix)
     return len(path_parts) >= len(suffix_parts) and path_parts[-len(suffix_parts) :] == suffix_parts
 
 
@@ -303,7 +293,8 @@ def make_candidate(
 
 
 def record_error(ctx: ScanContext, path: Path, exc: OSError) -> None:
-    label = errno.errorcode.get(getattr(exc, "errno", None), "ERROR")
+    error_number = exc.errno
+    label = "ERROR" if error_number is None else errno.errorcode.get(error_number, "ERROR")
     ctx.errors.append(f"{path_key(path)}: {label}: {exc}")
 
 
@@ -335,10 +326,6 @@ def is_installer_or_archive(path: Path) -> bool:
 def is_direct_child_of_sequence(path: Path, sequence: tuple[str, ...]) -> bool:
     index = contains_sequence(path, sequence)
     return index is not None and len(parts(path)) == index + len(sequence) + 1
-
-
-def is_under_sequence(path: Path, sequence: tuple[str, ...]) -> bool:
-    return contains_sequence(path, sequence) is not None
 
 
 def is_cache_child(path: Path) -> bool:
@@ -464,12 +451,12 @@ def classify_directory(path: Path, summary: DirSummary, entry_names: set[str], c
             [f"build directory name: {name}", "near project marker"],
         )
     else:
-        for suffix in LOW_RISK_PATH_SUFFIXES:
-            if has_suffix(path, suffix):
+        for low_risk_suffix in LOW_RISK_PATH_SUFFIXES:
+            if has_suffix(path, low_risk_suffix):
                 low_risk_reason = (
                     "cache/dependency artifact",
                     "Path matches a known cache or generated dependency location.",
-                    ["/".join(suffix), f"modified at least {LOW_RISK_AGE_DAYS} days ago"],
+                    ["/".join(low_risk_suffix), f"modified at least {LOW_RISK_AGE_DAYS} days ago"],
                 )
                 break
 
@@ -522,12 +509,12 @@ def classify_directory(path: Path, summary: DirSummary, entry_names: set[str], c
             ["cloud-synced path", f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
         )
     else:
-        for suffix in REVIEW_PATH_SUFFIXES:
-            if has_suffix(path, suffix) and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS):
+        for review_suffix in REVIEW_PATH_SUFFIXES:
+            if has_suffix(path, review_suffix) and old_enough(ctx, mtime, PROJECT_REVIEW_AGE_DAYS):
                 review_reason = (
                     "developer/app state",
                     "Large old developer or app state may be cleanable but can contain useful data.",
-                    ["/".join(suffix), f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
+                    ["/".join(review_suffix), f"modified at least {PROJECT_REVIEW_AGE_DAYS} days ago"],
                 )
                 break
 

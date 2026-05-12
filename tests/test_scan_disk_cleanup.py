@@ -15,8 +15,9 @@ SCANNER_PATH = REPO_ROOT / "disk-cleanup-agent" / "scripts" / "scan_disk_cleanup
 
 def load_scanner():
     spec = importlib.util.spec_from_file_location("scan_disk_cleanup", SCANNER_PATH)
-    module = importlib.util.module_from_spec(spec)
+    assert spec is not None
     assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module

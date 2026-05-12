@@ -48,10 +48,23 @@ python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/p
 
 ## Development
 
+Set up the project-local environment:
+
+```bash
+uv sync --dev
+```
+
 Run the tests:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_scan_disk_cleanup.py
+uv run python -m unittest tests/test_scan_disk_cleanup.py
+```
+
+Run type checks:
+
+```bash
+uv run mypy
+uv run pyright
 ```
 
 Validate the Codex skill metadata with the skill-creator validator if available:

@@ -1,0 +1,32 @@
+[project]
+name = "disk-cleanup-agent"
+version = "0.1.0"
+description = "Reusable Codex skill for conservative macOS disk cleanup reports."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pyright>=1.1.405",
+]
+
+[tool.uv]
+package = false
+
+[tool.mypy]
+python_version = "3.11"
+files = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py"]
+pretty = true
+show_error_codes = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict = true
+
+[tool.pyright]
+include = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py", "tests"]
+exclude = [".venv", ".mypy_cache", ".pytest_cache", "reports"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
