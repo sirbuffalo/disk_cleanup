@@ -13,6 +13,7 @@ import datetime as dt
 import errno
 import json
 import os
+import shutil
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
@@ -189,6 +190,18 @@ class DirSummary:
     dir_count: int = 0
 
 
+@dataclass(frozen=True)
+class VolumeCapacity:
+    path: str
+    total_bytes: int
+    used_bytes: int
+    available_bytes: int
+    total: str
+    used: str
+    available: str
+    available_percent: float
+
+
 @dataclass
 class ScanContext:
     now: float
@@ -198,6 +211,7 @@ class ScanContext:
     skipped: list[str]
     roots: list[str]
     one_file_system: bool = True
+    main_volume: VolumeCapacity | None = None
 
 
 def human_size(size_bytes: int) -> str:
@@ -210,6 +224,27 @@ def human_size(size_bytes: int) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{size_bytes} B"
+
+
+def volume_capacity(path: Path = Path("/")) -> VolumeCapacity | None:
+    try:
+        usage = shutil.disk_usage(path)
+    except OSError:
+        return None
+
+    available_percent = 0.0
+    if usage.total > 0:
+        available_percent = round((usage.free / usage.total) * 100, 1)
+    return VolumeCapacity(
+        path=path_key(path),
+        total_bytes=usage.total,
+        used_bytes=usage.used,
+        available_bytes=usage.free,
+        total=human_size(usage.total),
+        used=human_size(usage.used),
+        available=human_size(usage.free),
+        available_percent=available_percent,
+    )
 
 
 def path_key(path: Path) -> str:
@@ -803,12 +838,23 @@ def render_markdown(
         f"- Minimum item size: {human_size(ctx.min_size_bytes)}",
         f"- Low-risk total shown: {human_size(total_low_risk)} across {len(low_risk)} items",
         f"- Review total shown: {human_size(total_review)} across {len(review)} items",
-        "",
-        "This report is read-only. It does not delete, move, archive, upload, or empty anything.",
-        "",
-        "## Extremely Low Risk To Delete",
-        "",
     ]
+    if ctx.main_volume is not None:
+        lines.append(
+            "- Main volume available: "
+            f"{ctx.main_volume.available} free of {ctx.main_volume.total} "
+            f"({ctx.main_volume.available_percent:.1f}%) on `{ctx.main_volume.path}`"
+        )
+    lines.extend(
+        [
+            "",
+            "This report is read-only. It does not delete, move, archive, upload, "
+            "or empty anything.",
+            "",
+            "## Extremely Low Risk To Delete",
+            "",
+        ]
+    )
     if low_risk:
         lines.append(markdown_table(low_risk))
     else:
@@ -835,6 +881,7 @@ def json_payload(
         "finished": finished_at.isoformat(timespec="seconds"),
         "roots": ctx.roots,
         "min_size_bytes": ctx.min_size_bytes,
+        "main_volume": asdict(ctx.main_volume) if ctx.main_volume is not None else None,
         "candidates": [asdict(item) for item in candidates],
         "skipped": ctx.skipped,
         "errors": ctx.errors,
@@ -919,6 +966,7 @@ def main() -> int:
         errors=[],
         skipped=[],
         roots=[],
+        main_volume=volume_capacity(),
     )
 
     scan_roots(roots, ctx)

@@ -37,6 +37,8 @@ python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/p
 ```
 
 By default, the scanner runs a whole-volume scan and writes Markdown to `reports/disk-cleanup-YYYYMMDD-HHMM.md` in the current working directory.
+The report summary includes the main volume's currently available capacity so
+the cleanup candidates have useful context.
 Markdown scan notes are summarized by default; use `--verbose-notes` only when
 the user needs the full skipped/error list in the Markdown report.
 

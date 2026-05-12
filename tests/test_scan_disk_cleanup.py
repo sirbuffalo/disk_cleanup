@@ -218,6 +218,35 @@ class DiskCleanupScannerTests(unittest.TestCase):
         self.assertIn("`/dev: skipped system root`", verbose_report)
         self.assertIn("`/private/secret: EACCES:", verbose_report)
 
+    def test_report_includes_main_volume_capacity(self) -> None:
+        ctx = scanner.ScanContext(
+            now=dt.datetime.now().timestamp(),
+            min_size_bytes=0,
+            candidates=[],
+            errors=[],
+            skipped=[],
+            roots=[],
+            main_volume=scanner.VolumeCapacity(
+                path="/",
+                total_bytes=10 * scanner.MB,
+                used_bytes=7 * scanner.MB,
+                available_bytes=3 * scanner.MB,
+                total="10.0 MB",
+                used="7.0 MB",
+                available="3.0 MB",
+                available_percent=30.0,
+            ),
+        )
+
+        report = scanner.render_markdown(ctx, dt.datetime.now(), dt.datetime.now())
+        payload = scanner.json_payload(ctx, dt.datetime.now(), dt.datetime.now())
+
+        self.assertIn("Main volume available: 3.0 MB free of 10.0 MB (30.0%) on `/`", report)
+        main_volume = payload["main_volume"]
+        self.assertIsInstance(main_volume, dict)
+        assert isinstance(main_volume, dict)
+        self.assertEqual(main_volume["available_bytes"], 3 * scanner.MB)
+
     def test_app_bundle_internals_are_not_low_risk_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Applications"
