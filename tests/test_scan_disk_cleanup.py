@@ -6,13 +6,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNER_PATH = REPO_ROOT / "disk-cleanup-agent" / "scripts" / "scan_disk_cleanup.py"
 
 
-def load_scanner():
+def load_scanner() -> Any:
     spec = importlib.util.spec_from_file_location("scan_disk_cleanup", SCANNER_PATH)
     assert spec is not None
     assert spec.loader is not None
@@ -43,13 +44,13 @@ def make_old_tree(path: Path, days_old: int) -> None:
 
 
 class DiskCleanupScannerTests(unittest.TestCase):
-    def test_cli_defaults_to_whole_volume_markdown(self):
+    def test_cli_defaults_to_whole_volume_markdown(self) -> None:
         with mock.patch.object(sys, "argv", ["scan_disk_cleanup.py"]):
             args = scanner.parse_args()
         self.assertEqual(args.scope, "whole-volume")
         self.assertEqual(args.format, "markdown")
 
-    def test_fixture_classification_and_markdown(self):
+    def test_fixture_classification_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Users" / "davis"
             write_blob(root / "Library" / "Caches" / "BigCache" / "blob.bin", 2 * scanner.MB, 20)
@@ -91,7 +92,7 @@ class DiskCleanupScannerTests(unittest.TestCase):
             self.assertNotIn("rm -", report)
             self.assertNotIn("sudo ", report)
 
-    def test_cli_writes_markdown_report_and_json_sidecar(self):
+    def test_cli_writes_markdown_report_and_json_sidecar(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Users" / "davis"
             write_blob(root / "Library" / "Caches" / "App" / "cache.bin", scanner.MB, 30)
@@ -120,7 +121,7 @@ class DiskCleanupScannerTests(unittest.TestCase):
             self.assertTrue(output.with_suffix(".json").exists())
             self.assertIn("App", output.read_text())
 
-    def test_permission_errors_are_recorded(self):
+    def test_permission_errors_are_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Users" / "davis"
             blocked = root / "Library" / "Caches" / "Blocked"
@@ -140,7 +141,7 @@ class DiskCleanupScannerTests(unittest.TestCase):
             finally:
                 os.chmod(blocked, 0o700)
 
-    def test_source_has_no_destructive_filesystem_calls(self):
+    def test_source_has_no_destructive_filesystem_calls(self) -> None:
         source = SCANNER_PATH.read_text()
         forbidden = (
             "os.remove(",

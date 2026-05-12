@@ -18,7 +18,7 @@ package = false
 
 [tool.mypy]
 python_version = "3.11"
-files = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py"]
+files = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py", "tests"]
 pretty = true
 show_error_codes = true
 warn_unused_configs = true
@@ -28,7 +28,15 @@ strict = true
 
 [tool.pyright]
 include = ["disk-cleanup-agent/scripts/scan_disk_cleanup.py", "tests"]
-exclude = [".venv", ".mypy_cache", ".pytest_cache", "reports"]
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    ".venv",
+    ".mypy_cache",
+    ".pytest_cache",
+    "reports",
+]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
 
