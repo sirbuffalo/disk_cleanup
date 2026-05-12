@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -42,6 +43,12 @@ def make_old_tree(path: Path, days_old: int) -> None:
 
 
 class DiskCleanupScannerTests(unittest.TestCase):
+    def test_cli_defaults_to_whole_volume_markdown(self):
+        with mock.patch.object(sys, "argv", ["scan_disk_cleanup.py"]):
+            args = scanner.parse_args()
+        self.assertEqual(args.scope, "whole-volume")
+        self.assertEqual(args.format, "markdown")
+
     def test_fixture_classification_and_markdown(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "Users" / "davis"

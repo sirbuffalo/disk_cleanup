@@ -16,22 +16,22 @@ Never delete, move, archive, upload, empty Trash, run cleanup tools, or issue de
 Run the bundled scanner from this skill directory or by absolute path:
 
 ```bash
-python3 scripts/scan_disk_cleanup.py --scope whole-volume --format markdown
+python3 scripts/scan_disk_cleanup.py
 ```
 
 Useful options:
 
 ```bash
 python3 scripts/scan_disk_cleanup.py --root ~/Downloads --min-size-mb 25
-python3 scripts/scan_disk_cleanup.py --scope whole-volume --json
+python3 scripts/scan_disk_cleanup.py --json
 python3 scripts/scan_disk_cleanup.py --root ~/PycharmProjects --output reports/projects.md
 ```
 
-The default output is `reports/disk-cleanup-YYYYMMDD-HHMM.md` in the current working directory.
+By default, the scanner runs a whole-volume scan and writes Markdown to `reports/disk-cleanup-YYYYMMDD-HHMM.md` in the current working directory.
 
 ## Workflow
 
-1. Run `scripts/scan_disk_cleanup.py` with the narrowest root that satisfies the user. Use `--scope whole-volume` when the user asks for a broad Mac scan.
+1. Run `scripts/scan_disk_cleanup.py` for the default whole-volume Markdown report, or add `--root` when a narrower scan better satisfies the user.
 2. Open the generated Markdown report and summarize the largest low-risk items first, then review-only items.
 3. If the scanner reports permission errors, mention them briefly. Do not retry with `sudo`.
 4. If a path looks important despite a low-risk classification, move it to review in your answer.

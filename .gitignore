@@ -1,0 +1,24 @@
+# Generated scanner output
+reports/
+*.log
+
+# Python local artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments
+.venv/
+venv/
+env/
+
+# macOS metadata
+.DS_Store
+
+# Editor/project metadata
+.idea/
+.vscode/

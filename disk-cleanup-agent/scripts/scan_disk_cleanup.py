@@ -752,14 +752,20 @@ def write_text(path: Path, text: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Read-only macOS disk cleanup scanner that writes reviewable reports."
+        description="Read-only macOS disk cleanup scanner that writes reviewable reports.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--scope", choices=("whole-volume", "home"), default="whole-volume")
+    parser.add_argument(
+        "--scope",
+        choices=("whole-volume", "home"),
+        default="whole-volume",
+        help="Default scan scope when --root is not provided.",
+    )
     parser.add_argument("--root", action="append", help="Scan this root instead of the default scope. May be repeated.")
     parser.add_argument("--output", help="Output file or directory. Defaults to reports/disk-cleanup-YYYYMMDD-HHMM.md.")
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    parser.add_argument("--format", choices=("markdown", "json"), default="markdown", help="Primary report format.")
     parser.add_argument("--json", action="store_true", help="Also write a JSON sidecar when using Markdown output.")
-    parser.add_argument("--min-size-mb", type=float, default=DEFAULT_MIN_SIZE_MB)
+    parser.add_argument("--min-size-mb", type=float, default=DEFAULT_MIN_SIZE_MB, help="Minimum candidate size in MB.")
     parser.add_argument("--include-small", action="store_true", help="Include candidates below the default size threshold.")
     return parser.parse_args()
 
