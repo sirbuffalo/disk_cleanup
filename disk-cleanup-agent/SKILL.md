@@ -9,7 +9,13 @@ description: Conservative macOS disk cleanup exploration for finding large, old,
 
 Use this skill to explore disk usage on macOS and prepare a reviewable cleanup report.
 
-Never delete, move, archive, upload, empty Trash, run cleanup tools, or issue destructive commands. Do not use `sudo`. Treat the scanner and manual inspection commands as read-only; report paths and reasons so the user can decide what to remove.
+Keep all work read-only:
+
+1. Use the scanner and manual inspection commands only to observe disk usage.
+2. Do not delete, move, archive, upload, empty Trash, run cleanup tools, or issue destructive commands.
+3. Do not use `sudo`.
+
+Report paths and reasons so the user can decide what to remove.
 
 ## Quick Start
 
